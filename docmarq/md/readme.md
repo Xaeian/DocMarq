@@ -107,7 +107,7 @@ md_to_docx(md_text, "out.docx", style=style)
 
 ### Banner labels (i18n)
 
-Labels in the banner, footer, and callouts are style fields — defaults are English. Use `lang_style("pl"|"de"|...)` to apply a built-in preset, or override fields manually.
+Labels in the banner, footer, and callouts are style fields. Defaults are English. Use `lang_style("pl"|"de"|...)` to apply a built-in preset, or override fields manually.
 
 ```py
 from docmarq.md import lang_style, md_to_docx
@@ -157,7 +157,7 @@ Custom keys are allowed: `status: zatwierdzony` works if `"zatwierdzony"` is in 
 | A   |  right |
 
 ```py
-# Fenced code (no syntax highlighting in DOCX — language is accepted but ignored)
+# Fenced code (no syntax highlighting in DOCX, language is accepted but ignored)
 def hello(): pass
 ```
 
@@ -175,7 +175,7 @@ Footnotes[^1] and emoji :rocket: :sparkles:
 [^1]: Definition at end of doc.
 ````
 
-Word handles pagination on open, so there's no analytical page-break pass — paragraphs and tables reflow naturally.
+Word handles pagination on open, so there's no analytical page-break pass. Paragraphs and tables reflow naturally.
 
 ## HTML support
 
@@ -191,7 +191,7 @@ A small whitelist of raw HTML tags is recognized inside markdown. Everything els
 
 ### Headerless tables
 
-Markdown tables require a header row per spec, but a single-row "card" layout is a common pattern. A table with header but no body is rendered as headerless — useful for label/value blocks and contact cards:
+Markdown tables require a header row per spec, but a single-row "card" layout is a common pattern. A table with header but no body is rendered as headerless, useful for label/value blocks and contact cards:
 
 ```md
 | ![](logo.svg) | Pocket Diagnostics Poland sp. z o.o<br>80-890 Gdańsk<br>Jana Heweliusza 11/811 |
@@ -221,15 +221,15 @@ with DOCX("out.docx") as doc:
 
 ## Not supported (use `pdfmarq` if you need them)
 
-- Math formulas _(`$x^2$`, `$$...$$`)_ — Word's OMML is out of scope for v0.2.0
+- Math formulas _(`$x^2$`, `$$...$$`)_: Word's OMML is out of scope for v0.2.0
 - Syntax highlighting in fenced code _(language hint is accepted, ignored)_
-- Deferred page-number rendering — Word uses field codes; configure via `page_number_label` only
+- Deferred page-number rendering: Word uses field codes; configure via `page_number_label` only
 
 ## Optional deps for features
 
 Installed by `pip install docmarq[md]`:
-- `markdown-it-py`, `mdit-py-plugins` — parser + GFM plugins
-- `PyYAML` — frontmatter
+- `markdown-it-py`, `mdit-py-plugins`: parser + GFM plugins
+- `PyYAML`: frontmatter
 - `mermaid-cli` via npm for ` ```mermaid ` blocks: `npm install -g @mermaid-js/mermaid-cli` _(System tool, **not on PyPI**)_. Falls back to `mermaid.ink` HTTP service when `mmdc` is absent but network is available.
 
 If a dep is missing, the feature silently degrades _(mermaid block renders as a regular code block)_.

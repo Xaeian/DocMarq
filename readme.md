@@ -1,22 +1,22 @@
 # DocMarQ
 
-DOCX generation with a fluent API. Core is lean _(just `python-docx`)_. Optional `[md]` extra adds markdown-to-DOCX rendering with banner headers, mermaid, GitHub callouts and more. Sibling library to [`pdfmarq`](https://github.com/Xaeian/PDFMarQ) — same API shape, `.docx` output.
+DOCX generation with a fluent API. Core is lean _(just `python-docx`)_. Optional `[md]` extra adds markdown-to-DOCX rendering with banner headers, mermaid, GitHub callouts and more. Sibling library to [`pdfmarq`](https://github.com/Xaeian/PDFMarQ) with the same API shape and `.docx` output.
 
 ## Philosophy
 
 DocMarQ wraps `python-docx` _(OOXML zip plumbing, content types, relationships)_ into a fluent paragraph/run API. You describe document flow; Word handles layout, pagination, and reflow on open.
 
-- **Fluent paragraph/run model**: `doc.para("First.")` opens a paragraph, `doc.text(" with bold", bold=True)` appends a styled run — close with `enter()` or let the next block auto-open one
+- **Fluent paragraph/run model**: `doc.para("First.")` opens a paragraph, `doc.text(" with bold", bold=True)` appends a styled run. Close with `enter()` or let the next block auto-open one.
 - **One way per feature**: `doc.table()`, `doc.image()`, `doc.bullet()`, `doc.link()`, no overloaded call signatures
 - **Markdown is optional**: core → 1 dep _(`python-docx`)_, `[md]` adds `markdown-it-py`, `mdit-py-plugins`, `PyYAML`
-- **Cross-library parity**: API shape mirrors [`pdfmarq`](https://github.com/Xaeian/PDFMarQ) — `TableStyle`, `Styles`, `parse_color`, `rgb255`, page sizes, `lang_style()` for i18n. The same markdown source can target both PDF and DOCX.
-- **Word-native output**: opens cleanly in Word, LibreOffice, Google Docs. Templates `.dotx` / `.docx` are respected — themes and styles carry over.
+- **Cross-library parity**: API shape mirrors [`pdfmarq`](https://github.com/Xaeian/PDFMarQ), including `TableStyle`, `Styles`, `parse_color`, `rgb255`, page sizes, and `lang_style()` for i18n. The same markdown source can target both PDF and DOCX.
+- **Word-native output**: opens cleanly in Word, LibreOffice, Google Docs. Templates `.dotx` / `.docx` are respected, so themes and styles carry over.
 
 Trade-offs:
-- No cursor / coordinate control — Word owns layout. Great for content-driven documents, not for pixel-perfect grids _(use `pdfmarq` if you need that)_.
-- No math support. Word's equation editor is OOXML-native and out of scope for v0.2.0; for math-heavy docs use `pdfmarq` with matplotlib.
-- Syntax highlighting in code blocks is not rendered _(yet)_ — the `language` argument is accepted but ignored.
-- The dep tree is small but `python-docx` is the only path to OOXML. If it can't express something _(e.g. complex equation OMML)_, neither can DocMarQ — drop to `doc.doc` for raw `python-docx` access.
+- No cursor or coordinate control. Word owns layout. Great for content-driven documents, not for pixel-perfect grids _(use `pdfmarq` if you need that)_.
+- No math support. Word's equation editor is OOXML-native and out of scope for v0.2.0. For math-heavy docs use `pdfmarq` with matplotlib.
+- Syntax highlighting in code blocks is not rendered yet. The `language` argument is accepted but ignored.
+- The dep tree is small but `python-docx` is the only path to OOXML. If it can't express something _(e.g. complex equation OMML)_, neither can DocMarQ. Drop to `doc.doc` for raw `python-docx` access.
 
 ## Install
 
@@ -64,13 +64,13 @@ See [`example.py`](example.py) for an end-to-end CLI script: language preset, Wo
 - Skip-duplicate-title: drops `# X` when it matches frontmatter `title`
 - Auto-slugged headings with clickable `[text](#anchor)` internal links _(unicode-aware)_
 - Local-path links configurable via `link_root` + `link_base` _(or per-doc YAML `base:`)_
-- Mermaid diagrams via `mermaid-cli` _(local)_ or `mermaid.ink` _(network fallback)_ — shared cache with `pdfmarq`
+- Mermaid diagrams via `mermaid-cli` _(local)_ or `mermaid.ink` _(network fallback)_, with a shared cache with `pdfmarq`
 - Footnotes, emoji shortcodes `:rocket:`, nested lists, blockquotes, GitHub callouts _(`> [!NOTE]`, `> [!WARNING]`, …)_
 - Images with size caps for block and inline use _(`![alt](logo.svg)` works inline at x-height)_
 - Headerless single-row tables for label/value cards
-- Setext-heading-with-image recovery — `![](img.svg)\n---` renders as block image + `<hr>` instead of a thumbnail-sized setext h2
+- Setext-heading-with-image recovery: `![](img.svg)\n---` renders as block image + `<hr>` instead of a thumbnail-sized setext h2
 
-Not supported _(use `pdfmarq` if you need them)_: math formulas, syntax highlighting in code blocks, deferred page numbering _(Word does its own page numbers via field codes — see `doc.footer(page_number=True)`)_.
+Not supported _(use `pdfmarq` if you need them)_: math formulas, syntax highlighting in code blocks, deferred page numbering _(Word does its own page numbers via field codes, see `doc.footer(page_number=True)`)_.
 
 ## Modules
 
@@ -81,4 +81,4 @@ Not supported _(use `pdfmarq` if you need them)_: math formulas, syntax highligh
 
 ## See also
 
-Need PDF instead of `.docx`? [**PDFMarQ**](https://github.com/Xaeian/PDFMarQ) — sibling library, same API shape, PDF output. Adds math formulas, syntax highlighting, and pre-measured page breaks; otherwise feature parity _(banner, callouts, mermaid, lang presets)_.
+Need PDF instead of `.docx`? Check [**PDFMarQ**](https://github.com/Xaeian/PDFMarQ), the sibling library with the same API shape and PDF output. It adds math formulas, syntax highlighting, and pre-measured page breaks. Otherwise feature parity _(banner, callouts, mermaid, lang presets)_.
