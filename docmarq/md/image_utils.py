@@ -12,9 +12,34 @@ from dataclasses import dataclass
 
 #----------------------------------------------------------------------------- Preprocess
 
+def _svg_to_png_buffer(path:str):
+  """Rasterize SVG to PNG bytes in a `BytesIO`. Returns `None` when svglib
+  isn't installed or the SVG fails to parse.
+
+  python-docx has no native SVG support, so we go SVG → reportlab `Drawing`
+  → PNG via `renderPM` (PIL under the hood). DPI of 192 (~2x screen) keeps
+  the raster crisp when Word scales it inside the page width.
+  """
+  try:
+    from svglib.svglib import svg2rlg
+    from reportlab.graphics import renderPM
+  except ImportError:
+    return None
+  try:
+    drawing = svg2rlg(path)
+    if drawing is None:
+      return None
+    png_bytes = renderPM.drawToString(drawing, fmt="PNG", dpi=192)
+  except Exception:
+    return None
+  return io.BytesIO(png_bytes)
+
 def preprocess_to_buffer(path:str):
   """Open `path`, crop alpha-transparent borders, re-save as PNG into a
   `BytesIO`. Returns the buffer or `None` if Pillow / file unavailable.
+
+  SVG inputs route through `_svg_to_png_buffer` first since neither Pillow
+  nor python-docx can read them natively.
 
   Transparent padding around source artwork is the #1 reason embedded
   images look "shifted right" or smaller than expected - Word honors the
@@ -24,11 +49,13 @@ def preprocess_to_buffer(path:str):
   Also normalizes the format: JPEGs with non-standard APP segments (e.g.
   APP2 ICC profile) are rejected by python-docx; re-saving as PNG fixes it.
   """
+  if not os.path.isfile(path):
+    return None
+  if path.lower().endswith(".svg"):
+    return _svg_to_png_buffer(path)
   try:
     from PIL import Image
   except ImportError:
-    return None
-  if not os.path.isfile(path):
     return None
   try:
     im = Image.open(path)

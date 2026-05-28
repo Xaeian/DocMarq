@@ -186,7 +186,7 @@ style = lang_style("pl", footnote_label="Bibliografia")
 md_to_docx(text, "doc.docx", style=style)
 # Relative image paths resolved against base_dir
 md_to_docx(text, "doc.docx", base_dir="./assets")
-# Landscape via YAML frontmatter (`landscape: true`) or explicit kwarg
+# Landscape via YAML frontmatter `render.landscape: true` or explicit kwarg
 md_to_docx(text, "doc.docx", landscape=True)
 ```
 

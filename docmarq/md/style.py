@@ -41,13 +41,18 @@ class MarkdownStyle:
   # don't need to install anything. Calibri is the canonical Office body
   # font; Consolas is its companion monospace.
   body_family: str = "Calibri"
+  head_family: str|None = None # `None` = heading inherits `body_family`
   mono_family: str = "Consolas"
 
-  # Body line-height multiplier for markdown paragraphs. GitHub-feel value
-  # (~1.4) - looser than Word's `Normal` default (1.15) but matches the
-  # PDF render (`pdfmarq.MarkdownStyle.line_height`) so a doc rendered
-  # through both libs has consistent vertical rhythm.
-  line_height: float = 1.4
+  # Body line-height multiplier. 1.0 = Word's "Single" rule, which renders
+  # ~1.2x font size due to Calibri's internal leading - tight without being
+  # cramped. Headings have their own line spacing via Word's built-in
+  # Heading styles (see `core.py` `tight_line_height`).
+  line_height: float = 1.0
+
+  # Paragraph gap in pt (Word `space_after`). Default 6pt gives clear
+  # paragraph separation without the loose ~10pt Word "Normal" baseline.
+  para_gap_pt: float = 6
 
   #------------------------------------------------------------------------------- Mermaid
 

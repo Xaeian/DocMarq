@@ -29,7 +29,6 @@ address: 1 Lone Star Boulevard, Dallas TX 75201
 created: 1993-04-21
 updated: 2026-03-15
 sign: true
-landscape: false
 logo: ./ranger-badge.svg
 ---
 
@@ -48,7 +47,6 @@ logo: ./ranger-badge.svg
 | `created`   | ISO date, formatted via `style.date_format`                                  |
 | `updated`   | Same                                                                         |
 | `sign`      | `true` adds a dashed signature line + label at the end                       |
-| `landscape` | `true` flips page to landscape orientation                                   |
 | `logo`      | Path to `.svg`/`.png`/`.jpg`, aspect-aware                                   |
 | `subject`   | Written to DOCX core properties `/Subject`, not rendered                     |
 | `keywords`  | Written to DOCX core properties `/Keywords`, string or YAML list             |
@@ -58,6 +56,34 @@ Aliases: `code` → `id`, `company` → `entity` _(legacy)_.
 DOCX core properties _(`/Title`, `/Author`, `/Subject`, `/Keywords`)_ auto-fill from matching YAML keys. Pass `metadata={...}` to `md_to_docx()` to override per-key.
 
 If the first body block is `# X` and `X` matches `title` exactly, the h1 is dropped to avoid showing the title twice.
+
+## Render block
+
+Geometry, fonts, chrome, and locale live under a nested `render:` key in the same frontmatter. All optional; library defaults apply when absent. Mirrors `pdfmarq.md.render` field-for-field.
+
+```yaml
+---
+title: Report
+render:
+  page: A4              # A4 / A3 / A5 / LETTER / LEGAL
+  margin: 25            # mm; or list [top, right, bot, left]
+  landscape: false      # flip page
+  font_body: Calibri
+  font_head: Sora       # defaults to `font_body`
+  font_mono: Consolas
+  font_size: 11         # body pt
+  line_height: 1.0      # Word "Single" rule (~1.2x in render due to Calibri metrics)
+  img_max_h: 120        # mm cap on every image (per-image DSL still overrides)
+  banner: true          # page-1 banner from frontmatter
+  banner_min: true      # mini-banner on continuation pages
+  page_number: true     # footer numbering
+  lang: pl              # banner/footer labels (en/pl/de/fr/es/it/cs/sk)
+---
+```
+
+Precedence: `MarkdownStyle()` defaults < lang preset < frontmatter `render:` keys < caller's `style=` non-default fields.
+
+Top-level `landscape:` in frontmatter is deprecated and warns at parse time; move it under `render.landscape:`.
 
 ## Internal links
 
@@ -93,8 +119,10 @@ Resolution:
 from docmarq.md import MarkdownStyle
 style = MarkdownStyle(
   body_family="Calibri",
+  head_family="Sora",          # None = inherit from body_family
   mono_family="Consolas",
-  line_height=1.4,
+  line_height=1.0,             # 1.0 = Word "Single" rule
+  para_gap_pt=6,               # pt between paragraphs
   page_number_label="Strona",  # "Strona 1/5" footer; None to disable
   page_number_total=True,      # False → "Strona 1" without total
   date_format="%d.%m.%Y",      # strftime pattern

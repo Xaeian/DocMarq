@@ -35,16 +35,18 @@ class RenderConfig:
   page: PageSize|None = None
   margin: float|tuple|list|None = None
   landscape: bool|None = None
-  gutter: float|None = None
-  font: str|None = None
+  font_body: str|None = None
+  font_head: str|None = None
+  font_mono: str|None = None
   font_size: float|None = None
-  head_font: str|None = None
-  mono_font: str|None = None
   line_height: float|None = None
+  img_max_h: float|None = None
   banner: bool|None = None
-  header: bool|None = None
+  banner_min: bool|None = None
   page_number: bool|None = None
   lang: str|None = None
+  mermaid_theme: str|None = None
+  syntax_theme: str|None = None
 
 _KNOWN_KEYS = {f.name for f in fields(RenderConfig())}
 
@@ -77,16 +79,18 @@ def parse_render_block(fm:dict|None) -> RenderConfig:
     if key == "page": out.page = _parse_page(val)
     elif key == "margin": out.margin = _parse_margin_val(val)
     elif key == "landscape": out.landscape = _parse_bool(val, "landscape")
-    elif key == "gutter": out.gutter = _parse_positive_float(val, "gutter", True)
-    elif key == "font": out.font = _parse_str(val, "font")
+    elif key == "font_body": out.font_body = _parse_str(val, "font_body")
+    elif key == "font_head": out.font_head = _parse_str(val, "font_head")
+    elif key == "font_mono": out.font_mono = _parse_str(val, "font_mono")
     elif key == "font_size": out.font_size = _parse_positive_float(val, "font_size")
-    elif key == "head_font": out.head_font = _parse_str(val, "head_font")
-    elif key == "mono_font": out.mono_font = _parse_str(val, "mono_font")
     elif key == "line_height": out.line_height = _parse_positive_float(val, "line_height")
+    elif key == "img_max_h": out.img_max_h = _parse_positive_float(val, "img_max_h")
     elif key == "banner": out.banner = _parse_bool(val, "banner")
-    elif key == "header": out.header = _parse_bool(val, "header")
+    elif key == "banner_min": out.banner_min = _parse_bool(val, "banner_min")
     elif key == "page_number": out.page_number = _parse_bool(val, "page_number")
     elif key == "lang": out.lang = _parse_str(val, "lang")
+    elif key == "mermaid_theme": out.mermaid_theme = _parse_str(val, "mermaid_theme")
+    elif key == "syntax_theme": out.syntax_theme = _parse_str(val, "syntax_theme")
   return out
 
 #---------------------------------------------------------------------------- Value parsers
@@ -180,17 +184,22 @@ def build_style(
     base = lang_style(render.lang)
   else:
     base = MarkdownStyle()
-  # `head_font` collapses into `body_family` because docmarq's MarkdownStyle
-  # doesn't carry a separate heading family; Word's heading styles inherit
-  # the document body font when no explicit override is set.
-  if render.font:
-    base.body_family = render.font
-  if render.mono_font:
-    base.mono_family = render.mono_font
+  if render.font_body:
+    base.body_family = render.font_body
+  if render.font_head or render.font_body:
+    base.head_family = render.font_head or render.font_body
+  if render.font_mono:
+    base.mono_family = render.font_mono
+  if render.img_max_h is not None:
+    base.image_max_h = render.img_max_h
+  if render.mermaid_theme is not None:
+    base.mermaid_theme = render.mermaid_theme
+  # `syntax_theme` parsed but not applied: docmarq has no syntax highlighting.
+  # Keeping the key for cross-format source files - same `.md` works for both.
   if render.banner is not None:
     base.banner_render = render.banner
-  if render.header is not None:
-    base.mini_banner_render = render.header
+  if render.banner_min is not None:
+    base.mini_banner_render = render.banner_min
   if render.page_number is not None:
     if render.page_number is False:
       base.page_number_label = None

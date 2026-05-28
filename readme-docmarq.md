@@ -14,7 +14,7 @@ DocMarQ wraps `python-docx` _(OOXML zip plumbing, content types, relationships)_
 
 Trade-offs:
 - No cursor or coordinate control. Word owns layout. Great for content-driven documents, not for pixel-perfect grids _(use `pdfmarq` if you need that)_.
-- No math support. Word's equation editor is OOXML-native and out of scope. For math-heavy docs use `pdfmarq` with matplotlib.
+- No math support. Word's equation editor is OOXML-native and out of scope for v0.2.0. For math-heavy docs use `pdfmarq` with matplotlib.
 - Syntax highlighting in code blocks is not rendered yet. The `language` argument is accepted but ignored.
 - The dep tree is small but `python-docx` is the only path to OOXML. If it can't express something _(e.g. complex equation OMML)_, neither can DocMarQ. Drop to `doc.doc` for raw `python-docx` access.
 
@@ -60,7 +60,6 @@ See [`example.py`](example.py) for an end-to-end CLI script: language preset, Wo
 
 - GitHub-flavored markdown _(tables, fenced code, lists, strikethrough)_
 - YAML frontmatter rendered as a page-1 banner _(logo, status badge, version, sign block)_
-- Nested `render:` block in frontmatter controls page geometry, fonts, banner toggles, locale _(see [`md-guide`](md-guide.md))_
 - Built-in language presets _(en|pl|de|fr|es|it|cs|sk)_ via `lang_style()`: covers banner labels, callouts, date format
 - Skip-duplicate-title: drops `# X` when it matches frontmatter `title`
 - Auto-slugged headings with clickable `[text](#anchor)` internal links _(unicode-aware)_
@@ -71,7 +70,7 @@ See [`example.py`](example.py) for an end-to-end CLI script: language preset, Wo
 - Headerless single-row tables for label/value cards
 - Setext-heading-with-image recovery: `![](img.svg)\n---` renders as block image + `<hr>` instead of a thumbnail-sized setext h2
 
-Not supported _(use `pdfmarq` if you need them)_: math formulas, syntax highlighting in code blocks, deferred `Page N/M` totals _(Word's page-numbering fields compute live)_.
+Not supported _(use `pdfmarq` if you need them)_: math formulas, syntax highlighting in code blocks, deferred page numbering _(Word does its own page numbers via field codes, see `doc.footer(page_number=True)`)_.
 
 ## Modules
 

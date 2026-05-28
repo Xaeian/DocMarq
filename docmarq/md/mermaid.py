@@ -33,11 +33,34 @@ from pathlib import Path
 # regardless of which output format triggers the build first.
 _CACHE_DIR = Path.home() / ".cache" / "marq" / "mermaid"
 
-def _cache_key(source:str, theme:str, background:str, scale:float) -> str:
-  """SHA1 over inputs that affect rendering. Different theme / bg / scale
-  must produce different cache keys."""
-  payload = f"{source}\x00{theme}\x00{background}\x00{scale}".encode("utf-8")
+def _cache_key(source:str, theme:str, background:str, scale:float,
+    font_family:str="") -> str:
+  """SHA1 over inputs that affect rendering. Different theme / bg / scale /
+  font must produce different cache keys."""
+  payload = f"{source}\x00{theme}\x00{background}\x00{scale}\x00{font_family}".encode("utf-8")
   return hashlib.sha1(payload).hexdigest()[:16]
+
+#-------------------------------------------------------------------------------------- Font CSS
+
+def _resolve_font_ttf(font_dir:str, family:str) -> Path|None:
+  """Find `<family>-Regular.ttf` under `font_dir`."""
+  base = Path(font_dir)
+  for sub in (family.lower(), family):
+    p = base / sub / f"{family}-Regular.ttf"
+    if p.is_file(): return p
+  p = base / f"{family}-Regular.ttf"
+  if p.is_file(): return p
+  return None
+
+def _mmdc_css_with_font(ttf_path:Path, family:str) -> str:
+  """CSS for mmdc: @font-face from local TTF + apply to all SVG text."""
+  return (
+    f"@font-face {{\n"
+    f"  font-family: '{family}';\n"
+    f"  src: url('file:///{ttf_path.as_posix()}');\n"
+    f"}}\n"
+    f"* {{ font-family: '{family}', sans-serif !important; }}\n"
+  )
 
 def _cache_path(key:str) -> Path:
   _CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -47,19 +70,25 @@ def _cache_path(key:str) -> Path:
 
 def compile_to_png(source:str, cli:str="mmdc", theme:str="default",
     background:str="transparent", scale:float=2.0,
-    timeout:float=60) -> str|None:
+    timeout:float=60,
+    font_family:str|None=None, font_dir:str|None=None) -> str|None:
   """Render mermaid `source` to a PNG file. Returns a path the caller can
   embed; cache hits return the cached file, cache misses try mmdc first
   then mermaid.ink. Returns `None` only when both backends fail.
 
+  When `font_family`+`font_dir` are set and a matching TTF is found, the
+  diagram text uses that font via mmdc's `--cssFile` (`@font-face` CSS).
+  Ignored by mermaid.ink (no custom-font support).
+
   The returned path lives in the cache - caller MUST NOT delete it.
   """
-  key = _cache_key(source, theme, background, scale)
+  key = _cache_key(source, theme, background, scale, font_family or "")
   cached = _cache_path(key)
   if cached.is_file():
     return str(cached)
   if _try_mmdc(source, cached, cli=cli, theme=theme,
-      background=background, scale=scale, timeout=timeout):
+      background=background, scale=scale, timeout=timeout,
+      font_family=font_family, font_dir=font_dir):
     return str(cached)
   if _try_mermaid_ink(source, cached, theme=theme, background=background):
     return str(cached)
@@ -68,8 +97,11 @@ def compile_to_png(source:str, cli:str="mmdc", theme:str="default",
 #------------------------------------------------------------------------ Backend: mermaid-cli
 
 def _try_mmdc(source:str, out_path:Path, *, cli:str, theme:str,
-    background:str, scale:float, timeout:float) -> bool:
-  """Local mmdc subprocess. Returns `True` on success."""
+    background:str, scale:float, timeout:float,
+    font_family:str|None=None, font_dir:str|None=None) -> bool:
+  """Local mmdc subprocess. Returns `True` on success.
+  When `font_family`+`font_dir` are set and a matching TTF is found, a
+  temp CSS file with `@font-face` is injected via `--cssFile`."""
   if shutil.which(cli) is None:
     return False
   try:
@@ -79,6 +111,7 @@ def _try_mmdc(source:str, out_path:Path, *, cli:str, theme:str,
       src_path = f.name
   except OSError:
     return False
+  css_path = None
   cmd = [cli, "-i", src_path, "-o", str(out_path),
     "-t", theme, "-b", background, "-s", str(scale)]
   # Optional puppeteer config (e.g. custom Chrome path on sandboxed envs).
@@ -89,14 +122,27 @@ def _try_mmdc(source:str, out_path:Path, *, cli:str, theme:str,
     or os.environ.get("XAEIAN_MMDC_PUPPETEER_CONFIG"))
   if pp_config and Path(pp_config).is_file():
     cmd += ["-p", pp_config]
+  if font_family and font_dir:
+    ttf = _resolve_font_ttf(font_dir, font_family)
+    if ttf is not None:
+      try:
+        with tempfile.NamedTemporaryFile("w", suffix=".css", delete=False,
+            encoding="utf-8") as f:
+          f.write(_mmdc_css_with_font(ttf, font_family))
+          css_path = f.name
+        cmd += ["--cssFile", css_path]
+      except OSError:
+        css_path = None
   try:
     result = subprocess.run(cmd, capture_output=True, timeout=timeout, text=True)
   except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
     if os.environ.get("DOCMARQ_DEBUG"):
       print(f"[docmarq.mermaid] mmdc exception: {e}")
     _safe_remove(src_path)
+    if css_path: _safe_remove(css_path)
     return False
   _safe_remove(src_path)
+  if css_path: _safe_remove(css_path)
   if result.returncode != 0 or not out_path.is_file():
     if os.environ.get("DOCMARQ_DEBUG"):
       tail = (result.stderr or result.stdout or "").strip().splitlines()[-3:]

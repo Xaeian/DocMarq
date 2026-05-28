@@ -72,7 +72,8 @@ class MarkdownRenderer:
   Stateful (`_list_depth` tracks nesting), so reuse only within a single
   `render()` pass.
   """
-  def __init__(self, doc:DOCX, style:MarkdownStyle|None=None, base_dir:str|None=None):
+  def __init__(self, doc:DOCX, style:MarkdownStyle|None=None,
+      base_dir:str|None=None, font_dir:str|None=None):
     """Create a renderer bound to `doc`.
 
     Args:
@@ -80,10 +81,15 @@ class MarkdownRenderer:
       style: Optional `MarkdownStyle`. `None` uses defaults.
       base_dir: Root for resolving relative image paths
         (e.g. `![alt](./img/x.png)`). Defaults to current working dir.
+      font_dir: Optional TTF root. When set, mermaid diagrams render with
+        `style.body_family` instead of the system default sans-serif
+        (matches the rest of the document). Layout: `<font_dir>/<family>/
+        <family>-Regular.ttf` (mirrors `pdfmarq.FontManager`).
     """
     self.doc = doc
     self.style = style or MarkdownStyle()
     self.base_dir = base_dir or os.getcwd()
+    self.font_dir = font_dir
     md = MarkdownIt("commonmark", {"html": True, "breaks": False})
     md.enable(["table", "strikethrough"])
     md.use(footnote_plugin)
@@ -107,10 +113,12 @@ class MarkdownRenderer:
     if fm:
       self._apply_frontmatter_metadata(fm)
     self._apply_chrome(fm)
-    # Apply markdown body line-height once at render start - parity with
-    # `pdfmarq.MarkdownStyle.line_height` (default 1.4, GitHub-feel).
-    # Caller can still override later via `doc.style(line_height=...)`.
-    self.doc.style(line_height=self.style.line_height)
+    # Apply markdown body line-height + paragraph gap once at render start.
+    # Caller can still override later via `doc.style(...)`.
+    self.doc.style(
+      line_height=self.style.line_height,
+      space_after=self.style.para_gap_pt,
+    )
     if fm and self.style.banner_render:
       self._render_banner(fm)
     tokens = self._md.parse(md_text)
@@ -206,14 +214,20 @@ class MarkdownRenderer:
     self.doc.hr(color=self.style.hr_color)
 
   def _resolve_logo_path(self, logo) -> str|None:
-    """Resolve a `logo:` frontmatter value to a local file path. Returns
-    `None` if missing, remote, or non-existent _(banner falls back to flow
-    layout)_."""
+    """Resolve `logo:` to a local file path. `None` if unset, remote, or
+    missing (banner falls back to flow layout). Missing-but-set warns so
+    typos don't silently drop the logo. Mirrors `pdfmarq` (twin libs)."""
     if not logo:
       return None
     path = image_utils.resolve_path(str(logo), self.base_dir)
     if path and os.path.isfile(path):
       return path
+    import warnings
+    warnings.warn(
+      f"frontmatter `logo: {logo}` not found "
+      f"(base_dir={self.base_dir}); rendering without logo",
+      RuntimeWarning, stacklevel=2,
+    )
     return None
 
   def _render_banner_flow(self, fm:dict):
@@ -269,13 +283,14 @@ class MarkdownRenderer:
     pf = p.paragraph_format
     pf.space_before = Pt(0)
     pf.space_after = Pt(0)
+    from docx.image.exceptions import UnrecognizedImageError
     run = p.add_run()
     w_emu = Mm(to_mm(max_w_mm, self.doc.unit))
     buf = image_utils.preprocess_to_buffer(logo_path)
     try:
       run.add_picture(buf if buf is not None else logo_path, width=w_emu)
       self._pin_inline_picture_offsets(run)
-    except (OSError, ValueError):
+    except (OSError, ValueError, UnrecognizedImageError):
       pass
 
   def _fill_cell_banner_text(self, cell, fm:dict):
@@ -471,8 +486,11 @@ class MarkdownRenderer:
           self._render_paragraph(inline)
         i += 3
       elif tt == "fence" or tt == "code_block":
-        lang = (t.info or "").strip().split()[0] if t.info else None
-        if lang == "mermaid": self._render_mermaid(t.content)
+        # Info string: first token = lang, rest = optional DSL (mermaid only).
+        info_parts = (t.info or "").strip().split(maxsplit=1)
+        lang = info_parts[0] if info_parts else None
+        info_rest = info_parts[1] if len(info_parts) > 1 else ""
+        if lang == "mermaid": self._render_mermaid(t.content, info_rest)
         else:
           self.doc.code_block(
             t.content,
@@ -535,14 +553,15 @@ class MarkdownRenderer:
     self._add_runs_to_heading(p, inline_token)
 
   def _add_runs_to_heading(self, p, inline_token:Token):
-    """Walk inline children and add runs to a Heading paragraph without
-    overriding inherited font size/color from the heading style."""
+    """Walk inline children and add runs to a Heading paragraph. Inherits
+    size/color from the Heading style; overrides font when `head_family` set."""
     state = {"bold": False, "italic": False, "strike": False}
-    link_url = None
+    head_family = self.style.head_family
     for c in (inline_token.children or []):
       ct = c.type
       if ct == "text":
         run = p.add_run(c.content)
+        if head_family: run.font.name = head_family
         if state["bold"]: run.bold = True
         if state["italic"]: run.italic = True
         if state["strike"]: run.font.strike = True
@@ -877,10 +896,12 @@ class MarkdownRenderer:
          which produces visible right-shift / shrunk content).
       2. Normalize format (e.g. JPEGs with APP2 ICC profile reject by
          python-docx; re-saving as PNG fixes it).
+      3. Rasterize SVG to PNG (python-docx has no SVG support).
 
     `dsl.align` is applied to the paragraph holding the image after the
     insert (mapped to Word's paragraph alignment).
     """
+    from docx.image.exceptions import UnrecognizedImageError
     content_w = self.doc._page.content_width
     max_h = self.style.image_max_h
     dsl = dsl or image_utils.ImageDSL()
@@ -893,7 +914,7 @@ class MarkdownRenderer:
         target_w, target_h = self._compute_dims_buffer(buf, content_w, max_h, dsl)
         buf.seek(0)
         self._insert_picture(buf, target_w, target_h)
-    except (OSError, ValueError):
+    except (OSError, ValueError, UnrecognizedImageError):
       return False
     self._apply_image_align(dsl.align)
     return True
@@ -937,12 +958,9 @@ class MarkdownRenderer:
 
   #-------------------------------------------------------------------------------------- Mermaid
 
-  def _render_mermaid(self, source:str):
-    """Render a `mermaid` fenced block via `mmdc` (or `mermaid.ink` fallback)
-    to PNG, then embed like any figure with the standard scale rules. Falls
-    back to a code block when both backends fail. The PNG sits in the
-    on-disk cache (`~/.cache/docmarq/mermaid/`) so re-renders are instant.
-    """
+  def _render_mermaid(self, source:str, info_rest:str=""):
+    """Render mermaid via `mmdc` (or `mermaid.ink`) to PNG and embed.
+    `info_rest` is parsed as image DSL. Falls back to a code block on failure."""
     s = self.style
     if not s.mermaid_enable:
       self._fallback_mermaid_code(source)
@@ -950,8 +968,10 @@ class MarkdownRenderer:
     png_path = mermaid.compile_to_png(source,
       cli=s.mermaid_cli, theme=s.mermaid_theme,
       background=s.mermaid_background, scale=s.mermaid_scale,
+      font_family=s.body_family, font_dir=self.font_dir,
     )
-    if png_path is None or not self._try_insert_image(png_path):
+    dsl = image_utils.parse_image_dsl(info_rest) if info_rest else None
+    if png_path is None or not self._try_insert_image(png_path, dsl=dsl):
       self._fallback_mermaid_code(source)
 
   def _fallback_mermaid_code(self, source:str):
@@ -1152,6 +1172,7 @@ def md_to_docx(
   metadata: dict|None = None,
   landscape: bool|None = None,
   base_dir: str|None = None,
+  font_dir: str|None = None,
 ) -> DOCX:
   """Convert markdown text to a `.docx` file.
 
@@ -1173,6 +1194,8 @@ def md_to_docx(
     landscape: Flip page. `None` (default) reads `render.landscape`.
       Top-level `landscape:` is no longer honored (warns).
     base_dir: Root for resolving relative image paths. `None` uses cwd.
+    font_dir: Optional TTF root for mermaid diagram font sync. When set,
+      diagrams render in `style.body_family` instead of system default.
   """
   from .render import (
     parse_render_block, build_style, warn_top_level_landscape,
@@ -1192,10 +1215,6 @@ def md_to_docx(
     width, height = height, width
   eff_style = build_style(fm, style, render)
   doc = DOCX(output_path, width=width, height=height, margin=margin)
-  # Word's native gutter slot - applied to current section.
-  if render.gutter:
-    doc._page.gutter = float(render.gutter)
-    doc._apply_section_geometry()
   # Render-block typography that doesn't live on `MarkdownStyle` is applied
   # via the fluent doc API instead. Word picks these up for subsequent runs.
   if render.font_size is not None:
@@ -1204,7 +1223,7 @@ def md_to_docx(
     doc.style(line_height=render.line_height)
   if metadata:
     doc.metadata(**metadata)
-  renderer = MarkdownRenderer(doc, eff_style, base_dir=base_dir)
+  renderer = MarkdownRenderer(doc, eff_style, base_dir=base_dir, font_dir=font_dir)
   renderer.render(md_text)
   doc.save()
   return doc

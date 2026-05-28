@@ -1,5 +1,13 @@
 # Changes `docmarq`
 
+## `0.1.1` Fonts, mermaid & render keys
+
+- `.svg` image conversion
+- `head_family` for heading typography
+- Frontmatter `logo:` via `base_dir`
+- New `render:` keys
+- Mermaid: info-string DSL + `font_body` labels
+
 ## `0.1.0` Initial release
 
 Initial release of `docmarq`, a companion tool to [`PDFMarQ`](https://github.com/Xaeian/PDFMarQ).
